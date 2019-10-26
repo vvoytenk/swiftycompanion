@@ -163,8 +163,13 @@ class ViewController: UIViewController {
     }
     
     func createRequest(p_url: String, p_body: String, p_method: String) -> URLRequest {
-        let url = URL(string: p_url)!
         
+        var url = URL(string: "https://api.intra.42.fr/")!
+         
+        if let tmp_url = URL(string: p_url.trimmingCharacters(in: CharacterSet(charactersIn: " "))) {
+            url = tmp_url
+        }
+
         var request = URLRequest(url: url)
         request.httpBody = p_body.data(using: .utf8)
         request.httpMethod = p_method

@@ -67,6 +67,17 @@ class InfoPageViewController: UIViewController, UITableViewDataSource {
         photoImageView.image = dataSource.user.photo
     }
     
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        if tableView == projectsTableView {
+            return "Projects"
+        }
+        else if tableView == skillsTableView {
+            return "Skills"
+        }
+        else {
+            return ""
+        }
+    }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if tableView == projectsTableView {
             return dataSource?.projects.count ?? 0
@@ -88,12 +99,16 @@ class InfoPageViewController: UIViewController, UITableViewDataSource {
             let projectCell = tableView.dequeueReusableCell(withIdentifier: "ProjectLabelCell", for: indexPath)
             projectCell.textLabel?.text = dataSource.projects[indexPath.row].name
             projectCell.detailTextLabel?.text = "\(dataSource.projects[indexPath.row].score)"
+            projectCell.textLabel?.textColor = UIColor.white
+            projectCell.detailTextLabel?.textColor = UIColor.white
             return projectCell
         }
         else if tableView == skillsTableView {
             let skillCell = tableView.dequeueReusableCell(withIdentifier: "SkillLabelCell", for: indexPath)
             skillCell.textLabel?.text = dataSource.skills[indexPath.row].skill
             skillCell.detailTextLabel?.text = "\(dataSource.skills[indexPath.row].value)"
+            skillCell.textLabel?.textColor = UIColor.white
+            skillCell.detailTextLabel?.textColor = UIColor.white
             return skillCell
         }
         else {
