@@ -8,35 +8,58 @@
 
 import UIKit
 
-
-
 class ViewController: UIViewController {
     
-    struct requestProduct : Codable {
-        var access_token: String!
-        var token_type: String!
+    struct RequestProduct : Codable {
+        var access_token: String
+        var token_type: String
     }
     
-    struct UserProduct : Codable {
-        var id: Int
+    struct ParsingData : Codable {
+        
+        struct Cursus : Codable {
+            var id: Int
+        }
+        
+        struct CursusUsers : Codable {
+            
+            var level: Float
+            var grade: String?
+            var skills: [Skills]
+            var cursus: Cursus
+        }
+        
+        struct Skills : Codable {
+            var name: String
+            var level: Float
+        }
+        
+        struct Project : Codable{
+            var slug: String
+        }
+        
+        struct Projects : Codable {
+            var project: Project
+            var final_mark: Int?
+        }
+        
+        var login: String
+        var displayname: String
+        var wallet: Int
+        var image_url: String
+        var cursus_users: [CursusUsers]
+        var projects_users : [Projects]
     }
-    
+
     var login: String = ""
+    var token: RequestProduct?
     
     @IBOutlet weak var textField: UITextField!
     @IBOutlet weak var button: UIButton!
     @IBOutlet weak var scrollView: UIScrollView!
-    
-    
-    
+ 
     @IBAction func tapButton(_ sender: Any) {
-        if process() {
-            
-        }
-        else {
-          //  errorMessage()
-        }
-        
+        process()
     }
     
     override func viewDidLoad() {
@@ -48,70 +71,98 @@ class ViewController: UIViewController {
         view.addGestureRecognizer(tap)
         
         //add events for show/hide keyboard on screen
-        NotificationCenter.default.addObserver(self, selector: #selector(keybordIsShown(notification:)), name: UIWindow.keyboardWillShowNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(keybordIsHiden(notification:)), name: UIWindow.keyboardWillHideNotification, object: nil)
+        /*NotificationCenter.default.addObserver(self, selector: #selector(keybordIsShown(notification:)), name: UIWindow.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keybordIsHiden(notification:)), name: UIWindow.keyboardWillHideNotification, object: nil)*/
     }
     
-    func errorMessage(){
-        let message = "Incorrect login!"
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        let action = UIAlertAction(title: "Try again", style: .default, handler: {
-            action in
-            self.textField.text = ""
-        })
-        alert.addAction(action)
-        present(alert, animated: true, completion: nil)
+    func errorMessage() {
+        DispatchQueue.main.async {
+            let message = "Incorrect login!"
+            let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+            let action = UIAlertAction(title: "Try again", style: .default, handler: {
+                action in
+                self.textField.text = ""
+            })
+            alert.addAction(action)
+            self.present(alert, animated: true, completion: nil)
+        }
     }
     
-    func process() -> Bool {
+    func process()  {
         login = textField.text ?? ""
-        getToken(key: "0b5c29cb49d82af313050fbafa127ab97044364e77072264a7690d8424f3b144", secret: "b98b0a8b5dee76cb57fe57bf3dee5d0ee2dfc1a30bd5a4bcd1d92b1e35d5d35f")
-        return false
+        
+        guard let token = self.token else {
+            return getToken(key: "723f085b50e4eaaaeee26c2a28169fad566481af02bb211a4a78f8532fce77de",
+                            secret: "6a1041ae669d61c965ef254e089320106ed6d92053de75d3dea426077c57cf31")
+        }
+        getUser(p_token: token.access_token, p_tokenType: token.token_type)
     }
     
     @objc func dismissKeyboard() {
         view.endEditing(true)
     }
     
-    @objc func keybordIsShown(notification : NSNotification) {
+    /*@objc func keybordIsShown(notification : NSNotification) {
         scrollView.setContentOffset(CGPoint.init(x:0, y:60), animated: true)
     }
     
     @objc func keybordIsHiden(notification : NSNotification) {
         scrollView.setContentOffset(CGPoint.init(x:0, y:0), animated: true)
-        
-    }
-    
+    }*/
     
     func getToken(key : String, secret : String) {
         
         let tokenRequest = createRequest(p_url: "https://api.intra.42.fr/oauth/token",
                                          p_body: "grant_type=client_credentials&client_id=\(key)&client_secret=\(secret)",
-            p_method: "POST")
+                                         p_method: "POST")
         
-        
-        let decoder = JSONDecoder()
         let task = URLSession.shared.dataTask(with: tokenRequest) { (data, response, error) in
             if let json = data {
-                do {
-                    let token = try decoder.decode(requestProduct.self, from: json)
-                    self.createUserRequest(p_token: token.access_token, p_tokenType: token.token_type)
-                    print(token.self)
-                } catch {
-                    print(error)
+                guard let token = try? JSONDecoder().decode(RequestProduct.self, from: json) else {
+                    return self.errorMessage()
                 }
+                self.token = token
+                self.getUser(p_token: token.access_token, p_tokenType: token.token_type)
             }
-            else {if let error = error {
-                print(error)
-                }
+            else {
+                self.errorMessage()
             }
         }
         task.resume()
-        
     }
     
-    func createRequest(p_url: String, p_body: String, p_method: String) -> URLRequest{
+    func getUser(p_token : String, p_tokenType: String) {
         
+        var userRequest = createRequest(p_url: "https://api.intra.42.fr/v2/users/\(login)",
+                                        p_body: "",
+                                        p_method: "GET")
+        userRequest.setValue("\(p_tokenType) \(p_token)", forHTTPHeaderField: "Authorization")
+        
+        let task = URLSession.shared.dataTask(with: userRequest) { (data, response, error) in
+            if let json = data {
+                do {
+                    let userInfo = try JSONDecoder().decode(ParsingData.self, from: json)
+                    guard let info = self.convertToSourceData(data: userInfo) else {
+                        return self.errorMessage()
+                    }
+
+                    DispatchQueue.main.async {
+                        self.performSegue(withIdentifier: "SegueToInfoPage", sender: info)
+                        self.textField.text = ""
+                    }
+                } catch {
+                    self.errorMessage()
+                }
+            }
+            else {
+                self.errorMessage()
+            }
+        }
+        
+        task.resume()
+    }
+    
+    func createRequest(p_url: String, p_body: String, p_method: String) -> URLRequest {
         let url = URL(string: p_url)!
         
         var request = URLRequest(url: url)
@@ -120,37 +171,43 @@ class ViewController: UIViewController {
         return request
     }
     
-    
-    func createUserRequest (p_token : String, p_tokenType: String){
+    func convertToSourceData(data: ParsingData) -> InfoPageViewController.UIDataSource? {
         
-        let decoder = JSONDecoder()
-        
-        let url = URL(string: "https://api.intra.42.fr/v2/users/\(login)")!
-        
-        var userRequest = URLRequest(url: url)
-        userRequest.httpMethod = "GET"
-        // userRequest.httpBody = ("login=vvoytenk").data(using: .utf8)
-        userRequest.setValue("Bearer \(p_token)", forHTTPHeaderField: "Authorization")
-        
-        
-        let task = URLSession.shared.dataTask(with: userRequest) { (data, response, error) in
-            if let json = data {
-                do {
-                    print(String(data: json, encoding: .utf8) as Any)
-                    let user = try decoder.decode(UserProduct.self, from: json)
-                   // print(user.self)
-                } catch {
-                    self.errorMessage()
-                }
-            }
-            else {if error != nil {
-                self.errorMessage()
-                }
-            }
+        guard let url = URL(string: data.image_url), let image = try? Data(contentsOf: url), let photo = UIImage(data: image) else {
+            return nil
         }
-        task.resume()
         
+        guard let cursus42 = data.cursus_users.filter({ (cursusUser) -> Bool in
+            return (cursusUser.cursus.id == 1)
+        }).first else {
+            return nil
+        }
         
+        let user = InfoPageViewController.UIDataSource.User(photo: photo, name: data.displayname, login: data.login,
+                                                            lvl: cursus42.level, wallet: data.wallet)
+        
+        let projects = data.projects_users.map { (project) -> InfoPageViewController.UIDataSource.Project in
+            InfoPageViewController.UIDataSource.Project(name: project.project.slug, score: project.final_mark ?? 0)
+        }
+        
+        let skills = cursus42.skills.map { (skill) -> InfoPageViewController.UIDataSource.Skill in
+            InfoPageViewController.UIDataSource.Skill(skill: skill.name, value: skill.level)
+        }
+        
+        return InfoPageViewController.UIDataSource(user: user, projects: projects, skills: skills)
     }
-}
+    
+    // MARK: - Navigation
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        guard segue.identifier == "SegueToInfoPage" else {
+            return
+        }
+        
+        guard let dataSource = sender as? InfoPageViewController.UIDataSource else {
+            return
+        }
+        
+        (segue.destination as? InfoPageViewController)?.dataSource = dataSource
+    }
 
+}
